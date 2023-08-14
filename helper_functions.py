@@ -13,12 +13,49 @@ from sklearn.metrics import confusion_matrix
 import datetime
 from sklearn.metrics import classification_report
 import pandas as pd
+import PIL
 # Our function needs a different name to sklearn's plot_confusion_matrix
 
 
+def convert_to_wandb_table(dataframe, table_name, wandb_project, wandb_api_key):
+    '''
+    Args:
+    dataframe, dandb table name, wandb project name, wandb_api_key
+    '''
+    import wandb
+    
+    # Initialize a new wandb Table
+    # Initialize wandb and log the CSV file as an artifact
+    wandb.init(project=wandb_project, api_key=wandb_api_key)
+    table = wandb.Table(columns=dataframe.columns.tolist(), name=table_name)
+
+    # Convert DataFrame rows to Table rows
+    for index, row in dataframe.iterrows():
+        table_row = [row[column] for column in dataframe.columns]
+        table.add_data(*table_row)
+
+    wandb.log({table_name: table})
+    wandb.finish()
 
 
-def make_confusion_matrix(y_true, y_pred, classes=None, figsize=(10, 10), text_size=15, norm=False, savefig=False, wandb=None):
+def add_artifacts_wandb(filename,wandb_project,wandb_api_key,afrifact_name,artifact_data_type):
+    '''
+    Args:
+    local file, project_name, api_key, save_artifact name, artifact datatype
+    '''
+    
+    import wandb
+    # Initialize wandb and log the CSV file as an artifact
+    wandb.init(project=wandb_project, api_key=wandb_api_key)
+    artifact = wandb.Artifact(afrifact_name, type=artifact_data_type)
+    artifact.add_file(filename)
+    wandb.log_artifact(artifact)
+
+    # Finish the run
+    wandb.finish()
+
+
+def make_confusion_matrix(y_true, y_pred, classes=None, figsize=(10, 10), text_size=15, norm=False, savefig=False, wandb=False):
     """Makes a labelled confusion matrix comparing predictions and ground truth labels.
 
     If classes is passed, confusion matrix will be labelled, if not, integer class values
@@ -101,13 +138,18 @@ def make_confusion_matrix(y_true, y_pred, classes=None, figsize=(10, 10), text_s
 
     #To add cm to wandb 
     if wandb:
+        # wandb.init(project=wandb_project, api_key=wandb_api_key)
         wandb.log({"confusion_matrix": wandb.Image(plt)})
+
 
 
 
 def make_classification_report(y_true, y_pred, test_dir_list, pred_probs, class_names=None):
     '''
     Inputs : labels, predictions, list of class names, report_name to be saved
+
+    Args:
+    Ground Truth, Prediction, List of file path, prediction probability, unique_classes list
     '''
 
     pred_df = pd.DataFrame({"img_path": test_dir_list,
@@ -203,3 +245,22 @@ def calculate_results(y_true, y_pred):
     return model_results
 
     
+def plot_some_negative_examples(df,dandb=False):
+    top_100_wrong = df[df["pred_correct"] == False].sort_values("pred_conf", ascending=False)[:10]
+    top_100_wrong.head(20)
+        # 5. Visualize some of the most wrong examples
+    images_to_view = 9
+    start_index = 10 # change the start index to view more
+    plt.figure(figsize=(15, 10))
+    for i, row in enumerate(top_100_wrong[start_index:start_index+images_to_view].itertuples()): 
+        plt.subplot(3, 3, i+1)
+        img = pil_image = PIL.Image.open(row[1])
+        _, _, _, _, pred_prob, y_true, y_pred, _ = row # only interested in a few parameters of each row
+        plt.imshow(img)
+        plt.title(f"actual: {y_true}, pred: {y_pred} \nprob: {pred_prob:.2f}")
+        plt.axis(False)
+
+    if wandb:
+        import wandb
+        # wandb.init(project=wandb_project, api_key=wandb_api_key)
+        wandb.log({"Max_False_Positive": wandb.Image(plt)})
