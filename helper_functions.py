@@ -16,6 +16,8 @@ import pandas as pd
 # Our function needs a different name to sklearn's plot_confusion_matrix
 
 
+
+
 def make_confusion_matrix(y_true, y_pred, classes=None, figsize=(10, 10), text_size=15, norm=False, savefig=False, wandb=None):
     """Makes a labelled confusion matrix comparing predictions and ground truth labels.
 
@@ -30,7 +32,7 @@ def make_confusion_matrix(y_true, y_pred, classes=None, figsize=(10, 10), text_s
       text_size: Size of output figure text (default=15).
       norm: normalize values or not (default=False).
       savefig: save confusion matrix to file (default=False).
-
+      wandb: wandb object.
     Returns:
       A labelled confusion matrix plot comparing y_true and y_pred.
 
@@ -103,10 +105,19 @@ def make_confusion_matrix(y_true, y_pred, classes=None, figsize=(10, 10), text_s
 
 
 
-def make_classification_report(y_true, y_pred, class_names=None ,report_name=""):
+def make_classification_report(y_true, y_pred, test_dir_list, pred_probs, class_names=None):
     '''
     Inputs : labels, predictions, list of class names, report_name to be saved
     '''
+
+    pred_df = pd.DataFrame({"img_path": test_dir_list,
+                        "y_true": y_true,
+                        "y_pred": y_pred,
+                        "pred_conf": pred_probs.max(axis=1), # get the maximum prediction probability value
+                        "y_true_classname": [class_names[i] for i in y_true],
+                        "y_pred_classname": [class_names[i] for i in y_pred]}) 
+    
+    pred_df["pred_correct"] = pred_df["y_true"] == pred_df["y_pred"]
     
     # Get a dictionary of the classification report
     classification_report_dict = classification_report(y_true, y_pred, output_dict=True)
@@ -124,12 +135,9 @@ def make_classification_report(y_true, y_pred, class_names=None ,report_name="")
             class_precision.append(v["precision"])
             class_recall.append(v["recall"])
 
-    df = pd.DataFrame({"class_names":class_names,"precision":class_precision,"recall":class_recall})
+    cm_df = pd.DataFrame({"class_names":class_names,"precision":class_precision,"recall":class_recall})
 
-    if report_name != "":
-        df.to_csv(f"{report_name}.csv")
-
-    return df
+    return pred_df,cm_df
 
 
 # Create function to unzip a zipfile into current working directory
@@ -193,3 +201,5 @@ def calculate_results(y_true, y_pred):
                      "recall": model_recall,
                      "f1": model_f1}
     return model_results
+
+    
